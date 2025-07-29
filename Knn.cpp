@@ -1,10 +1,8 @@
 //AIT FERHAT Thanina
+//BENKERROU Lynda
 
-
-#include <iostream>
+#include "Knn.h"
 #include <utility>
-#include <vector>
-#include <map>
 #include <filesystem>
 #include <algorithm>
 #include <fstream>
@@ -12,17 +10,10 @@
 #include <cmath>
 
 namespace fs = std::filesystem;
-//Récupère le nom de la classe/ num échantillon, vecteur de données, le nom de la méthode
-class Image {
-public:
-    std::string className;
-    int sampleNumber;
-    std::vector<double> values;
-    std::string methodName;
 
-    Image(std::string className, int sampleNumber, const std::vector<double>& values, std::string methodName)
-            : className(std::move(className)), sampleNumber(sampleNumber), values(values), methodName(std::move(methodName)) {}
-};
+// Implémentation du constructeur de la classe Image
+Image::Image(std::string className, int sampleNumber, const std::vector<double>& values, std::string methodName)
+    : className(std::move(className)), sampleNumber(sampleNumber), values(values), methodName(std::move(methodName)) {}
 //lecture de fichiers d'un dossier et stockage dans des vecteurs
 std::vector<double> readVectorsFromFolders(const std::string& folderName) {
     std::ifstream file(folderName);
@@ -64,9 +55,12 @@ std::string predictKNN(const std::vector<Image>& trainingSet, const std::vector<
     // Tri les distances par ordre croissant
     std::sort(distances.begin(), distances.end());
 
+    // Ajuster k si nécessaire pour éviter les erreurs de dépassement
+    int effectiveK = std::min(k, static_cast<int>(distances.size()));
+    
     // Compte les occurrences de chaque classe parmi les k voisins les plus proches
     std::map<std::string, int> classCounts;
-    for (int i = 0; i < k; ++i) {
+    for (int i = 0; i < effectiveK; ++i) {
         classCounts[distances[i].second]++;
     }
 
@@ -236,6 +230,7 @@ std::map<std::string, std::pair<std::vector<Image>, std::vector<Image>>> creatio
 
 
 
+#ifndef KNN_LIB
 int main() {
 
     std::vector<std::string> chemins_dossiers = {
@@ -361,3 +356,4 @@ int main() {
         }
     }
 }
+#endif // KNN_LIB

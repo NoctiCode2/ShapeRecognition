@@ -1,46 +1,38 @@
 //AIT FERHAT Thanina
 //BENKERROU Lynda
-#include <iostream>
+
+#include "kmeans.h"
 #include <random>
 #include <utility>
-#include <vector>
-#include <map>
 #include <filesystem>
 #include <algorithm>
 #include <fstream>
 #include <cmath>
 #include <limits>
-#include <unordered_map>
 
 namespace fs = std::filesystem;
-// Classe représentant une image avec ses caractéristiques.
-class Image {
-public:
-    std::string className; // Nom de la classe de l'image.
-    int sampleNumber;// Numéro de l'échantillon.
-    std::vector<double> values;// Vecteur de caractéristiques de l'image.
-    std::string methodName; // Nom de la méthode utilisée pour traiter l'image.
-    // Constructeur de la classe Image.
-    Image(std::string  className, int sampleNumber, const std::vector<double>& values, std::string  methodName)
-            : className(std::move(className)), sampleNumber(sampleNumber), values(values), methodName(std::move(methodName)) {}
-};
-// Classe implémentant l'algorithme KMeans.
 
-class KMeans {
-public:
-    KMeans(int k) : k(k) {} // Constructeur prenant le nombre de clusters.
-    const std::vector<int>& getAssignments() const { return assignments; } // Retourne les affectations de cluster.
+// Implémentation du constructeur de KMeans
+KMeans::KMeans(int k) : k(k), centroids(), assignments() {}
 
+// Retourne les affectations de cluster
+const std::vector<int>& KMeans::getAssignments() const { 
+    return assignments; 
+}
 
+// Retourne le nombre de clusters
+int KMeans::getK() const { 
+    return k; 
+}
 
-    int getK() const { return k; } // Retourne le nombre de clusters.
-    // Assigner une image à un cluster en trouvant le centroïde le plus proche.
-    int assignCluster(const Image& image) {
-        int closest = findClosestCentroid(image.values);
-        return closest;
-    }
-    // Calculer le score de silhouette pour évaluer la qualité du clustering.
-    double calculateSilhouetteScore(const std::vector<Image>& images) {
+// Assigner une image à un cluster en trouvant le centroïde le plus proche
+int KMeans::assignCluster(const Image& image) {
+    int closest = findClosestCentroid(image.values);
+    return closest;
+}
+
+// Calculer le score de silhouette pour évaluer la qualité du clustering
+double KMeans::calculateSilhouetteScore(const std::vector<Image>& images) {
         std::vector<double> silhouetteScores(images.size(), 0.0);
 
         for (size_t i = 0; i < images.size(); ++i) {
@@ -93,19 +85,21 @@ public:
                 count++;
             }
         }
-        return count > 0 ? sum / count : 0;
+    return count > 0 ? sum / count : 0;
+}
+
+// Calculer l'inertie du clustering (Méthode Elbow)
+double KMeans::calculateInertie(const std::vector<Image>& images) {
+    double inertie = 0.0;
+    for (size_t i = 0; i < images.size(); ++i) {
+        int clusterIdx = assignments[i];
+        inertie += euclideanDistance(images[i].values, centroids[clusterIdx]);
     }
-    //Calcul inertie(Méthode Elbow)
-    /*double calculateInertie(const std::vector<Image>& images) {
-        double inertie = 0.0;
-        for (size_t i = 0; i < images.size(); ++i) {
-            int clusterIdx = assignments[i];
-            inertie += euclideanDistance(images[i].values, centroids[clusterIdx]);
-        }
-        return inertie;
-    }*/
-    // Exécuter l'algorithme KMeans sur les images.
-    void fit(const std::vector<Image>& images) {
+    return inertie;
+}
+
+// Exécuter l'algorithme KMeans sur les images
+void KMeans::fit(const std::vector<Image>& images) {
         // Initialiser les centres de clusters
         initCentroids(images);
 
@@ -116,18 +110,11 @@ public:
             changed = assignClusters(images, assignments);
             recalculateCentroids(images, assignments);
         } while (changed);
-        this->assignments = assignments; // Stocker les assignations finales
+    this->assignments = assignments; // Stocker les assignations finales
+}
 
-
-    }
-
-private:
-    int k;// Nombre de clusters.
-    std::vector<std::vector<double>> centroids; // Centroïdes des clusters.
-    std::vector<int> assignments; // Ajouté pour stocker les assignations finales
-
-    // Initialiser les centres des clusters de manière aléatoire.
-    void initCentroids(const std::vector<Image>& images) {
+// Initialiser les centres des clusters de manière aléatoire
+void KMeans::initCentroids(const std::vector<Image>& images) {
         std::random_device rd;
         std::mt19937 gen(rd());
         std::uniform_int_distribution<> dis(0, images.size() - 1);
@@ -135,11 +122,11 @@ private:
         centroids.clear();
         for (int i = 0; i < k; ++i) {
             centroids.push_back(images[dis(gen)].values);
-        }
     }
+}
 
-    // Assigner chaque image à un cluster.
-    bool assignClusters(const std::vector<Image>& images, std::vector<int>& assignments) {
+// Assigner chaque image à un cluster
+bool KMeans::assignClusters(const std::vector<Image>& images, std::vector<int>& assignments) {
         bool changed = false;
         for (size_t i = 0; i < images.size(); ++i) {
             int closest = findClosestCentroid(images[i].values);
@@ -147,11 +134,12 @@ private:
                 assignments[i] = closest;
                 changed = true;
             }
-        }
-        return changed;
     }
-    // Recalculer les centres des clusters après l'assignation des images.
-    void recalculateCentroids(const std::vector<Image>& images, const std::vector<int>& assignments) {
+    return changed;
+}
+
+// Recalculer les centres des clusters après l'assignation des images
+void KMeans::recalculateCentroids(const std::vector<Image>& images, const std::vector<int>& assignments) {
         std::vector<std::vector<double>> sums(k, std::vector<double>(images[0].values.size(), 0.0));
         std::vector<int> counts(k, 0);
 
@@ -166,11 +154,12 @@ private:
             if (counts[i] == 0) continue;
             for (size_t j = 0; j < sums[i].size(); ++j) {
                 centroids[i][j] = sums[i][j] / counts[i];
-            }
         }
     }
-    // Trouver le centroïde le plus proche d'une image.
-    int findClosestCentroid(const std::vector<double>& values) {
+}
+
+// Trouver le centroïde le plus proche d'une image
+int KMeans::findClosestCentroid(const std::vector<double>& values) {
         double min_distance = std::numeric_limits<double>::max();
         int closest = -1;
 
@@ -180,38 +169,20 @@ private:
                 min_distance = distance;
                 closest = i;
             }
-        }
-
-        return closest;
     }
 
-    // Calculer la distance euclidienne entre deux vecteurs.
-    static double euclideanDistance(const std::vector<double>& a, const std::vector<double>& b) {
+    return closest;
+}
+
+// Calculer la distance euclidienne entre deux vecteurs
+double KMeans::euclideanDistance(const std::vector<double>& a, const std::vector<double>& b) {
         double sum = 0.0;
         for (size_t i = 0; i < a.size(); ++i) {
             sum += (a[i] - b[i]) * (a[i] - b[i]);
-        }
-        return std::sqrt(sum);
     }
-};
-
-// Lire des vecteurs de données depuis des fichiers et les stocker dans un vecteur.
-std::vector<double> readVectorsFromFolders(const std::string& folderName) {
-    std::ifstream file(folderName);
-    std::vector<double> vect;
-
-    if (file) {
-        double number;
-        while (file >> number) {
-            vect.push_back(number);
-        }
-        file.close();
-    } else {
-        std::cerr << "Erreur lors de l'ouverture du fichier : " << folderName << std::endl;
-    }
-
-    return vect;
+    return std::sqrt(sum);
 }
+
 // Charger des images depuis un dossier et les stocker dans un vecteur d'images.
 std::vector<Image> chargeImages(const std::string& repertoire) {
     std::vector<Image> images;
@@ -248,6 +219,7 @@ void assignClassesToClusters(const std::vector<Image>& images, const std::vector
 }
 
 //Programme principal
+#ifndef KMEANS_LIB
 int main() {
 
     std::vector<std::string> chemins_dossiers = {
@@ -278,3 +250,4 @@ int main() {
     }
     return 0;
 }
+#endif // KMEANS_LIB
