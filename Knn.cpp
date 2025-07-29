@@ -8,31 +8,67 @@
 #include <fstream>
 #include <random>
 #include <cmath>
+#include <sstream>
+#include <limits>
 
 namespace fs = std::filesystem;
 
 // Implémentation du constructeur de la classe Image
 Image::Image(std::string className, int sampleNumber, const std::vector<double>& values, std::string methodName)
     : className(std::move(className)), sampleNumber(sampleNumber), values(values), methodName(std::move(methodName)) {}
-//lecture de fichiers d'un dossier et stockage dans des vecteurs
+//lecture de fichiers d'un dossier et stockage dans des vecteurs avec gestion d'erreurs améliorée
 std::vector<double> readVectorsFromFolders(const std::string& folderName) {
     std::ifstream file(folderName);
     std::vector<double> vect;
 
-    if (file) {
-        double number;
-        while (file >> number) {
-            vect.push_back(number);
+    if (!file.is_open()) {
+        std::cerr << "Erreur : Impossible d'ouvrir le fichier : " << folderName << std::endl;
+        return vect; // Retourne un vecteur vide
+    }
+
+    std::string line;
+    int lineNumber = 0;
+    
+    while (std::getline(file, line)) {
+        lineNumber++;
+        std::istringstream iss(line);
+        std::string token;
+        
+        // Lire chaque nombre sur la ligne
+        while (iss >> token) {
+            try {
+                double number = std::stod(token);
+                vect.push_back(number);
+            } catch (const std::invalid_argument& e) {
+                std::cerr << "Attention : Valeur non numérique ignorée '" << token 
+                         << "' à la ligne " << lineNumber << " dans " << folderName << std::endl;
+            } catch (const std::out_of_range& e) {
+                std::cerr << "Attention : Valeur hors limites ignorée '" << token 
+                         << "' à la ligne " << lineNumber << " dans " << folderName << std::endl;
+            }
         }
-        file.close();
-    } else {
-        std::cerr << "Erreur lors de l'ouverture du fichier : " << folderName << std::endl;
+    }
+    
+    file.close();
+    
+    if (vect.empty()) {
+        std::cerr << "Attention : Aucune donnée numérique trouvée dans " << folderName << std::endl;
     }
 
     return vect;
 }
-//  fonction pour calculer la distance euclidienne entre deux vecteurs
+//  fonction pour calculer la distance euclidienne entre deux vecteurs avec validation
 double distance(const std::vector<double>& v1, const std::vector<double>& v2) {
+    if (v1.size() != v2.size()) {
+        std::cerr << "Erreur : Les vecteurs doivent avoir la même taille pour calculer la distance" << std::endl;
+        std::cerr << "Taille v1: " << v1.size() << ", Taille v2: " << v2.size() << std::endl;
+        return std::numeric_limits<double>::infinity(); // Retourne une distance infinie en cas d'erreur
+    }
+    
+    if (v1.empty()) {
+        return 0.0; // Distance entre deux vecteurs vides est 0
+    }
+    
     double sum = 0.0;
     for (size_t i = 0; i < v1.size(); ++i) {
         double diff = v1[i] - v2[i];
@@ -41,15 +77,40 @@ double distance(const std::vector<double>& v1, const std::vector<double>& v2) {
     return std::sqrt(sum);
 }
 
-//  fonction pour prédire la classe d'une image en utilisant k-NN
+//  fonction pour prédire la classe d'une image en utilisant k-NN avec gestion d'erreurs améliorée
 std::string predictKNN(const std::vector<Image>& trainingSet, const std::vector<double>& queryVector, int k) {
+    // Validation des paramètres d'entrée
+    if (trainingSet.empty()) {
+        std::cerr << "Erreur : L'ensemble d'entraînement est vide" << std::endl;
+        return "ERREUR";
+    }
+    
+    if (queryVector.empty()) {
+        std::cerr << "Erreur : Le vecteur de requête est vide" << std::endl;
+        return "ERREUR";
+    }
+    
+    if (k <= 0) {
+        std::cerr << "Erreur : k doit être positif (k=" << k << ")" << std::endl;
+        return "ERREUR";
+    }
+    
     // un vecteur pour stocker les distances entre l'image de requête et les images d'entraînement
     std::vector<std::pair<double, std::string>> distances;
 
     // Calcul distance entre la requête et chaque image d'entraînement
     for (const Image& image : trainingSet) {
         double dist = distance(queryVector, image.values);
-        distances.emplace_back(dist, image.className);
+        
+        // Ignorer les distances infinies (erreur de calcul)
+        if (!std::isinf(dist) && !std::isnan(dist)) {
+            distances.emplace_back(dist, image.className);
+        }
+    }
+    
+    if (distances.empty()) {
+        std::cerr << "Erreur : Aucune distance valide calculée" << std::endl;
+        return "ERREUR";
     }
 
     // Tri les distances par ordre croissant
@@ -57,6 +118,11 @@ std::string predictKNN(const std::vector<Image>& trainingSet, const std::vector<
 
     // Ajuster k si nécessaire pour éviter les erreurs de dépassement
     int effectiveK = std::min(k, static_cast<int>(distances.size()));
+    
+    if (effectiveK < k) {
+        std::cerr << "Attention : k réduit de " << k << " à " << effectiveK 
+                 << " (taille de l'ensemble d'entraînement)" << std::endl;
+    }
     
     // Compte les occurrences de chaque classe parmi les k voisins les plus proches
     std::map<std::string, int> classCounts;
